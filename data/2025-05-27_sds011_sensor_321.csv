@@ -1,3 +1,0 @@
-sensor_id;sensor_type;location;lat;lon;timestamp;P1;durP1;ratioP1;P2;durP2;ratioP2
-321;SDS011;148;51.480;7.208;2025-05-27T16:30:37;18.00;;;4.40;;
-321;SDS011;148;51.480;7.208;2025-05-27T21:28:31;7.90;;;4.30;;
