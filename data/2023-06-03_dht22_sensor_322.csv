@@ -1,0 +1,2 @@
+sensor_id;sensor_type;location;lat;lon;timestamp;temperature;humidity
+322;DHT22;148;51.480;7.208;2023-06-03T00:00:20;17.40;67.10
