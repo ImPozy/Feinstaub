@@ -7,20 +7,32 @@ DATA_FOLDER = "data"
 
 
 def to_float(value):
-    if value == "" or value is None:
+    if value is None or value == "":
         return None
     return float(value)
 
 
 def to_int(value):
-    if value == "" or value is None:
+    if value is None or value == "":
         return None
     return int(value)
 
 
+def create_unique_indexes(cursor):
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_weather_unique
+        ON weather(sensor_id, timestamp)
+    """)
+
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_air_quality_unique
+        ON air_quality(sensor_id, timestamp)
+    """)
+
+
 def import_weather(cursor, row):
     cursor.execute("""
-        INSERT INTO weather (
+        INSERT OR IGNORE INTO weather (
             sensor_id, sensor_type, location, lat, lon, timestamp,
             temperature, humidity
         )
@@ -36,10 +48,12 @@ def import_weather(cursor, row):
         to_float(row["humidity"])
     ))
 
+    return cursor.rowcount
+
 
 def import_air_quality(cursor, row):
     cursor.execute("""
-        INSERT INTO air_quality (
+        INSERT OR IGNORE INTO air_quality (
             sensor_id, sensor_type, location, lat, lon, timestamp,
             P1, durP1, ratioP1, P2, durP2, ratioP2
         )
@@ -59,28 +73,35 @@ def import_air_quality(cursor, row):
         to_float(row["ratioP2"])
     ))
 
+    return cursor.rowcount
+
 
 def import_csv_file(cursor, file_path):
+    imported_rows = 0
+    skipped_rows = 0
+
     with open(file_path, "r", encoding="utf-8", newline="") as file:
         reader = csv.DictReader(file, delimiter=";")
-
-        imported_rows = 0
 
         for row in reader:
             sensor_type = row.get("sensor_type", "").upper()
 
             if sensor_type == "DHT22":
-                import_weather(cursor, row)
-                imported_rows += 1
+                inserted = import_weather(cursor, row)
 
             elif sensor_type == "SDS011":
-                import_air_quality(cursor, row)
-                imported_rows += 1
+                inserted = import_air_quality(cursor, row)
 
             else:
                 print(f"Unbekannter sensor_type in Datei {file_path.name}: {sensor_type}")
+                continue
 
-        return imported_rows
+            if inserted == 1:
+                imported_rows += 1
+            else:
+                skipped_rows += 1
+
+    return imported_rows, skipped_rows
 
 
 def main():
@@ -99,16 +120,30 @@ def main():
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
 
-    total_rows = 0
+    total_imported = 0
+    total_skipped = 0
 
     try:
+        create_unique_indexes(cursor)
+
         for csv_file in csv_files:
-            rows = import_csv_file(cursor, csv_file)
-            total_rows += rows
-            print(f"{csv_file.name}: {rows} Zeilen importiert")
+            imported, skipped = import_csv_file(cursor, csv_file)
+
+            total_imported += imported
+            total_skipped += skipped
+
+            print(
+                f"{csv_file.name}: "
+                f"{imported} neu importiert, "
+                f"{skipped} übersprungen"
+            )
 
         connection.commit()
-        print(f"\nFertig. Insgesamt importiert: {total_rows} Zeilen")
+
+        print()
+        print("Fertig.")
+        print(f"Neu importiert: {total_imported}")
+        print(f"Übersprungen: {total_skipped}")
 
     except Exception as error:
         connection.rollback()
@@ -121,3 +156,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Test
